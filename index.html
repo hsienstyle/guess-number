@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>猜數字大冒險</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    font-family: "Microsoft JhengHei", "PingFang TC", sans-serif;
+    background: radial-gradient(circle at 30% 20%, #3b2a6b, #120c26 70%);
+    color: #fff; overflow-x: hidden; transition: background .6s;
+  }
+  body.flash-red { background: radial-gradient(circle at 30% 20%, #8b1a1a, #2a0505 70%); }
+  body.flash-green { background: radial-gradient(circle at 30% 20%, #1a8b4a, #052a14 70%); }
+  #confetti { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
+
+  .card {
+    width: 94%; max-width: 480px; padding: 24px 22px;
+    background: rgba(255,255,255,.07); backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,.15); border-radius: 24px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.5); text-align: center; position: relative;
+  }
+  .top { display: flex; justify-content: space-between; align-items: center; font-size: .95rem; }
+  .pill { background: rgba(255,255,255,.12); padding: 5px 12px; border-radius: 999px; }
+  #mute { cursor: pointer; border: none; color: #fff; font-size: 1rem; }
+  h1 { margin: 12px 0 4px; font-size: 1.8rem; letter-spacing: 2px;
+       background: linear-gradient(90deg,#ffd86f,#fc6262); -webkit-background-clip: text; color: transparent; }
+
+  .boss { display: flex; align-items: center; gap: 12px; margin: 14px 0; text-align: left; }
+  #face { font-size: 3.2rem; transition: transform .3s; }
+  #face.bounce { animation: bounce .5s; }
+  .bubble {
+    flex: 1; background: #fff; color: #333; padding: 10px 14px; border-radius: 14px;
+    position: relative; font-size: 1rem; min-height: 44px;
+  }
+  .bubble::before { content: ""; position: absolute; left: -8px; top: 14px;
+    border: 8px solid transparent; border-right-color: #fff; border-left: 0; }
+
+  .levels { display: flex; gap: 6px; justify-content: center; margin-bottom: 12px; }
+  .levels button {
+    border: 1px solid rgba(255,255,255,.3); background: transparent; color: #ddd;
+    padding: 5px 10px; border-radius: 999px; cursor: pointer; font-size: .85rem;
+  }
+  .levels button.active { background: #ffd86f; color: #333; border-color: #ffd86f; font-weight: bold; }
+
+  .status { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  #hearts { font-size: 1.3rem; letter-spacing: 2px; }
+  #timer { font-variant-numeric: tabular-nums; }
+
+  .rangebar { position: relative; height: 18px; background: rgba(255,255,255,.1);
+              border-radius: 9px; overflow: hidden; margin: 6px 0 4px; }
+  #rangeFill { position: absolute; top: 0; bottom: 0; border-radius: 9px;
+               background: linear-gradient(90deg,#4facfe,#00f2fe); transition: all .5s cubic-bezier(.2,.9,.3,1.3); }
+  .tick { position: absolute; top: 0; bottom: 0; width: 3px; border-radius: 2px; }
+  .rangetext { font-size: .85rem; color: #bbb; margin-bottom: 12px; }
+  .rangetext b { color: #fff; font-size: 1rem; }
+
+  .row { display: flex; gap: 8px; }
+  input {
+    flex: 1; font-size: 1.6rem; padding: 10px; text-align: center; color: #fff;
+    background: rgba(0,0,0,.3); border: 2px solid rgba(255,255,255,.2); border-radius: 14px; outline: none;
+  }
+  input:focus { border-color: #ffd86f; }
+  .btn {
+    font-size: 1.1rem; padding: 10px 20px; border: none; border-radius: 14px; font-weight: bold;
+    background: linear-gradient(135deg,#ffd86f,#fc6262); color: #fff; cursor: pointer; transition: transform .1s;
+  }
+  .btn:active { transform: scale(.94); }
+  .btn:disabled { filter: grayscale(1); opacity: .5; cursor: not-allowed; }
+
+  #temp { margin: 14px 0 4px; font-size: 1.3rem; font-weight: bold; min-height: 1.6em; }
+  #trend { font-size: .9rem; color: #ccc; min-height: 1.3em; }
+
+  .powers { display: flex; gap: 6px; justify-content: center; margin: 14px 0 10px; flex-wrap: wrap; }
+  .powers button {
+    background: rgba(255,255,255,.1); color: #fff; border: 1px solid rgba(255,255,255,.25);
+    padding: 7px 10px; border-radius: 12px; cursor: pointer; font-size: .85rem;
+  }
+  .powers button:hover:not(:disabled) { background: rgba(255,216,111,.25); }
+  .powers button:disabled { opacity: .35; cursor: not-allowed; }
+
+  .history { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; min-height: 28px; }
+  .history span { padding: 3px 9px; border-radius: 8px; font-size: .85rem; animation: pop .3s; }
+
+  #restart { margin-top: 14px; width: 100%; display: none; }
+  .float { position: fixed; font-weight: bold; font-size: 1.6rem; color: #ffd86f; pointer-events: none;
+           animation: floatUp 1.4s forwards; z-index: 11; text-shadow: 0 2px 8px rgba(0,0,0,.6); }
+
+  .shake { animation: shake .4s; }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-10px)} 40%{transform:translateX(10px)} 60%{transform:translateX(-6px)} 80%{transform:translateX(6px)} }
+  @keyframes bounce { 0%,100%{transform:scale(1)} 50%{transform:scale(1.35) rotate(-10deg)} }
+  @keyframes pop { from{transform:scale(0)} to{transform:scale(1)} }
+  @keyframes floatUp { from{opacity:1; transform:translate(-50%,0)} to{opacity:0; transform:translate(-50%,-80px)} }
+</style>
+</head>
+<body>
+<canvas id="confetti"></canvas>
+<div class="card" id="card">
+  <div class="top">
+    <span class="pill">🏆 <span id="score">0</span></span>
+    <span class="pill">🔥 連勝 <span id="streak">0</span></span>
+    <span class="pill">🪙 <span id="coins">3</span></span>
+    <button class="pill" id="mute">🔊</button>
+  </div>
+
+  <h1>猜數字大冒險</h1>
+
+  <div class="boss">
+    <div id="face">😏</div>
+    <div class="bubble" id="say">哼哼，我心裡藏了一個數字，你猜不到的啦～</div>
+  </div>
+
+  <div class="levels">
+    <button data-max="50" data-lives="7" data-mult="1">🙂 簡單</button>
+    <button data-max="100" data-lives="8" data-mult="2" class="active">😎 普通</button>
+    <button data-max="1000" data-lives="11" data-mult="4">💀 地獄</button>
+  </div>
+
+  <div class="status">
+    <span id="hearts"></span>
+    <span class="pill" id="timer">⏱ 0.0s</span>
+  </div>
+
+  <div class="rangebar" id="rangebar"><div id="rangeFill"></div></div>
+  <div class="rangetext">答案藏在 <b id="low">1</b> ～ <b id="high">100</b> 之間</div>
+
+  <div class="row">
+    <input id="guess" type="number" placeholder="?" autofocus>
+    <button class="btn" id="go">猜！</button>
+  </div>
+
+  <div id="temp"></div>
+  <div id="trend"></div>
+
+  <div class="powers">
+    <button id="pOdd">🔍 奇偶 (1🪙)</button>
+    <button id="pHalf">✂️ 砍半 (2🪙)</button>
+    <button id="pDigit">🎲 個位數 (3🪙)</button>
+    <button id="pLife">❤️ 補血 (2🪙)</button>
+  </div>
+
+  <div class="history" id="history"></div>
+
+  <button class="btn" id="restart">再來一局 ▶</button>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const rand = arr => arr[Math.floor(Math.random() * arr.length)];
+
+// ---------- 狀態 ----------
+let cfg = { max: 100, lives: 8, mult: 2 };
+let answer, lives, low, high, over, startTime, timerId, lastDist, guesses, usedPowers;
+let score = 0, streak = 0, coins = 3;
+let muted = false;
+
+// ---------- 台詞 ----------
+const LINES = {
+  start: ["哼哼，我心裡藏了一個數字，你猜不到的啦～", "新的一局！這次我藏得超深 🤫", "來啊，讓我看看你有多厲害！", "我賭你猜不中 😝"],
+  high: ["太～大～了！你在想什麼啦 😂", "往下往下！太高了啦～", "這麼大？你是不是想太多了", "No no no，小一點 👇"],
+  low: ["太小了啦！格局打開好嗎 😆", "往上往上！☝️", "哈哈，再大膽一點嘛", "小看我了吧？大一點！"],
+  close: ["欸…欸欸？等一下，你很接近了 😰", "不、不可能，你怎麼知道的…", "我開始緊張了 💦"],
+  danger: ["只剩一條命囉～要不要哭一下 😈", "最後機會！猜錯我就贏了哈哈哈"],
+  win: ["什麼！？被你猜到了 😱", "可惡…算你厲害 😤", "我不服！再來一局！", "你是不是偷看了？！"],
+  lose: ["哈哈哈哈我贏了！😈", "太嫩了啦～", "下次再來挑戰我吧～ 🥱"],
+  power: ["欸！不能用道具啦！作弊！😠", "可惡，被你看穿了一點…", "這樣太賤了吧 😒"],
+  invalid: ["你輸入的是什麼東西啦 🙄", "範圍內的數字好嗎！"],
+  repeat: ["這個你剛剛猜過了啦，金魚腦嗎 🐟"],
+};
+function say(type, face) {
+  $("say").textContent = rand(LINES[type]);
+  if (face) setFace(face);
+}
+function setFace(f) {
+  const el = $("face");
+  el.textContent = f;
+  el.classList.remove("bounce"); void el.offsetWidth; el.classList.add("bounce");
+}
+
+// ---------- 音效 ----------
+let actx;
+function tone(freq, dur = 0.12, type = "sine", delay = 0, vol = 0.15) {
+  if (muted) return;
+  actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+  const o = actx.createOscillator(), g = actx.createGain();
+  o.type = type; o.frequency.value = freq;
+  const t = actx.currentTime + delay;
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(g).connect(actx.destination);
+  o.start(t); o.stop(t + dur);
+}
+const SFX = {
+  high: () => { tone(500, .1, "square"); tone(350, .15, "square", .08); },
+  low: () => { tone(350, .1, "square"); tone(500, .15, "square", .08); },
+  win: () => [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, .25, "triangle", i * .09, .2)),
+  lose: () => [400, 340, 280, 200].forEach((f, i) => tone(f, .3, "sawtooth", i * .15, .12)),
+  power: () => { tone(880, .08); tone(1320, .15, "sine", .06); },
+  error: () => tone(150, .2, "sawtooth"),
+  coin: () => { tone(988, .08, "square", 0, .1); tone(1319, .2, "square", .08, .1); },
+};
+
+// ---------- 遊戲流程 ----------
+function newGame() {
+  answer = Math.floor(Math.random() * cfg.max) + 1;
+  lives = cfg.lives; low = 1; high = cfg.max; over = false;
+  lastDist = null; guesses = []; usedPowers = {};
+  $("history").innerHTML = "";
+  [...$("rangebar").querySelectorAll(".tick")].forEach(t => t.remove());
+  $("temp").textContent = ""; $("trend").textContent = "";
+  $("guess").value = ""; $("guess").disabled = false; $("go").disabled = false;
+  $("restart").style.display = "none";
+  document.body.className = "";
+  say("start", "😏");
+  startTime = performance.now();
+  clearInterval(timerId);
+  timerId = setInterval(() => { $("timer").textContent = "⏱ " + elapsed().toFixed(1) + "s"; }, 100);
+  render();
+  $("guess").focus();
+}
+
+function elapsed() { return (performance.now() - startTime) / 1000; }
+
+function render() {
+  $("hearts").textContent = "❤️".repeat(lives) + "🖤".repeat(Math.max(0, cfg.lives - lives));
+  $("low").textContent = low; $("high").textContent = high;
+  const fill = $("rangeFill");
+  fill.style.left = ((low - 1) / cfg.max * 100) + "%";
+  fill.style.width = ((high - low + 1) / cfg.max * 100) + "%";
+  $("score").textContent = score; $("streak").textContent = streak; $("coins").textContent = coins;
+  const dis = over;
+  $("pOdd").disabled = dis || coins < 1 || usedPowers.odd;
+  $("pHalf").disabled = dis || coins < 2 || high - low < 2;
+  $("pDigit").disabled = dis || coins < 3 || usedPowers.digit;
+  $("pLife").disabled = dis || coins < 2 || lives >= cfg.lives;
+}
+
+function temperature(n) {
+  const d = Math.abs(n - answer) / cfg.max;
+  if (d <= 0.02) return ["🔥🔥🔥 超燙！快燒起來了！", "#ff3b3b"];
+  if (d <= 0.05) return ["🔥 很燙！", "#ff6b3b"];
+  if (d <= 0.12) return ["♨️ 溫溫的", "#ffb03b"];
+  if (d <= 0.25) return ["🌤️ 有點涼", "#9fd3ff"];
+  if (d <= 0.5)  return ["❄️ 好冷", "#5aaeff"];
+  return ["🧊 冰到結凍！", "#3b7bff"];
+}
+
+function addTick(n, color) {
+  const t = document.createElement("div");
+  t.className = "tick";
+  t.style.left = ((n - 0.5) / cfg.max * 100) + "%";
+  t.style.background = color;
+  $("rangebar").appendChild(t);
+}
+
+function addHistory(n, bg, mark) {
+  const s = document.createElement("span");
+  s.style.background = bg;
+  s.textContent = n + " " + mark;
+  $("history").appendChild(s);
+}
+
+function shake() {
+  const c = $("card");
+  c.classList.remove("shake"); void c.offsetWidth; c.classList.add("shake");
+}
+
+function floatText(text, color = "#ffd86f") {
+  const r = $("card").getBoundingClientRect();
+  const el = document.createElement("div");
+  el.className = "float"; el.textContent = text; el.style.color = color;
+  el.style.left = (r.left + r.width / 2) + "px"; el.style.top = (r.top + 120) + "px";
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1400);
+}
+
+function guess() {
+  if (over) return;
+  const n = parseInt($("guess").value, 10);
+  $("guess").value = "";
+  if (isNaN(n) || n < 1 || n > cfg.max) { say("invalid", "🙄"); SFX.error(); shake(); return; }
+  if (guesses.includes(n)) { say("repeat", "🤣"); SFX.error(); shake(); return; }
+  guesses.push(n);
+
+  if (n === answer) return win(n);
+
+  lives--;
+  const [txt, color] = temperature(n);
+  $("temp").textContent = txt; $("temp").style.color = color;
+  const dist = Math.abs(n - answer);
+  if (lastDist !== null) {
+    $("trend").textContent = dist < lastDist ? "📈 比上次更接近了！" : dist > lastDist ? "📉 比上次更遠了…" : "😐 跟上次一樣遠";
+  }
+  lastDist = dist;
+
+  if (n > answer) { high = Math.min(high, n - 1); SFX.high(); addHistory(n, color, "↓"); }
+  else            { low = Math.max(low, n + 1);  SFX.low();  addHistory(n, color, "↑"); }
+  addTick(n, color);
+  shake();
+
+  if (lives <= 0) return lose();
+
+  if (dist / cfg.max <= 0.05) say("close", "😰");
+  else if (lives === 1) say("danger", "😈");
+  else say(n > answer ? "high" : "low", n > answer ? "😂" : "😆");
+
+  render();
+  $("guess").focus();
+}
+
+function win(n) {
+  over = true; clearInterval(timerId);
+  const t = elapsed();
+  const used = cfg.lives - lives + 1;
+  streak++;
+  let pts = (lives * 100 + Math.max(0, Math.round((30 - t) * 10))) * cfg.mult;
+  const combo = 1 + (streak - 1) * 0.5;
+  pts = Math.round(pts * combo);
+  let earned = 2 + (lives >= cfg.lives - 2 ? 1 : 0);
+  let bonus = "";
+  if (used === 1) { pts *= 5; earned += 5; bonus = " ✨一發入魂！分數 x5✨"; }
+  score += pts; coins += earned;
+
+  low = high = n;
+  addHistory(n, "#27ae60", "✓"); addTick(n, "#2ecc71");
+  $("temp").textContent = `🎉 答對了！就是 ${answer}！`; $("temp").style.color = "#2ecc71";
+  $("trend").textContent = `用了 ${used} 次・${t.toFixed(1)} 秒・+${pts} 分・+${earned}🪙` + (streak > 1 ? `・連勝 x${combo}` : "") + bonus;
+  say("win", used === 1 ? "🤯" : "😱");
+  document.body.className = "flash-green";
+  SFX.win(); setTimeout(SFX.coin, 500);
+  floatText("+" + pts);
+  confetti();
+  saveHigh();
+  endRound();
+}
+
+function lose() {
+  over = true; clearInterval(timerId);
+  streak = 0;
+  $("temp").textContent = `💀 沒命了！答案是 ${answer}`; $("temp").style.color = "#ff5c5c";
+  $("trend").textContent = "連勝歸零…";
+  addTick(answer, "#fff");
+  say("lose", "😈");
+  document.body.className = "flash-red";
+  SFX.lose();
+  endRound();
+}
+
+function endRound() {
+  $("guess").disabled = true; $("go").disabled = true;
+  $("restart").style.display = "block";
+  render();
+  $("restart").focus();
+}
+
+function saveHigh() {
+  const hi = +localStorage.getItem("gn-high") || 0;
+  if (score > hi) { localStorage.setItem("gn-high", score); }
+}
+
+// ---------- 道具 ----------
+function usePower(cost) { coins -= cost; SFX.power(); say("power", "😠"); floatText("-" + cost + "🪙", "#ffcf4d"); }
+
+$("pOdd").onclick = () => {
+  usePower(1); usedPowers.odd = true;
+  $("trend").textContent = `🔍 情報：答案是 ${answer % 2 ? "奇數" : "偶數"}！`;
+  render();
+};
+$("pHalf").onclick = () => {
+  usePower(2);
+  const mid = Math.floor((low + high) / 2);
+  if (answer <= mid) high = mid; else low = mid + 1;
+  $("trend").textContent = `✂️ 範圍砍半！現在是 ${low} ～ ${high}`;
+  render();
+};
+$("pDigit").onclick = () => {
+  usePower(3); usedPowers.digit = true;
+  $("trend").textContent = `🎲 情報：答案的個位數是 ${answer % 10}！`;
+  render();
+};
+$("pLife").onclick = () => {
+  usePower(2); lives++;
+  $("trend").textContent = "❤️ 補了一條命！";
+  render();
+};
+
+// ---------- 彩帶 ----------
+const cv = $("confetti"), cx = cv.getContext("2d");
+let parts = [], animId;
+function resize() { cv.width = innerWidth; cv.height = innerHeight; }
+addEventListener("resize", resize); resize();
+function confetti() {
+  const colors = ["#ffd86f", "#fc6262", "#4facfe", "#2ecc71", "#c56cf0", "#fff"];
+  for (let i = 0; i < 180; i++) {
+    parts.push({
+      x: innerWidth / 2, y: innerHeight / 2,
+      vx: (Math.random() - 0.5) * 18, vy: Math.random() * -18 - 4,
+      s: Math.random() * 8 + 4, r: Math.random() * 6, vr: (Math.random() - 0.5) * 0.4,
+      c: rand(colors), life: 0,
+    });
+  }
+  cancelAnimationFrame(animId); loop();
+}
+function loop() {
+  cx.clearRect(0, 0, cv.width, cv.height);
+  parts.forEach(p => {
+    p.vy += 0.45; p.vx *= 0.99; p.x += p.vx; p.y += p.vy; p.r += p.vr; p.life++;
+    cx.save(); cx.translate(p.x, p.y); cx.rotate(p.r);
+    cx.fillStyle = p.c; cx.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2); cx.restore();
+  });
+  parts = parts.filter(p => p.y < cv.height + 20 && p.life < 300);
+  if (parts.length) animId = requestAnimationFrame(loop);
+  else cx.clearRect(0, 0, cv.width, cv.height);
+}
+
+// ---------- 事件 ----------
+$("go").onclick = guess;
+$("guess").addEventListener("keydown", e => { if (e.key === "Enter") guess(); });
+$("restart").onclick = newGame;
+$("mute").onclick = () => { muted = !muted; $("mute").textContent = muted ? "🔇" : "🔊"; };
+document.querySelectorAll(".levels button").forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll(".levels button").forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+    cfg = { max: +b.dataset.max, lives: +b.dataset.lives, mult: +b.dataset.mult };
+    newGame();
+  };
+});
+
+newGame();
+</script>
+</body>
+</html>
